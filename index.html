@@ -379,13 +379,13 @@
     .calendar-frame-wrap {
       flex: 1;
       min-height: 0;
-      background: rgba(0, 0, 0, 0.55); /* aptumšots + caurspīdīgs */
+      background: rgba(0, 0, 0, 0.55);
       border-radius: var(--radius-lg);
       border: 1px solid rgba(148, 163, 184, 0.6);
       box-shadow: var(--shadow);
       padding: 0.7rem;
       display: grid;
-      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); /* kalendāri viens zem otra */
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
       gap: 0.6rem;
     }
 
@@ -779,98 +779,99 @@
       setInterval(loadNamedays, 24 * 60 * 60 * 1000);
     })();
 
-// ========================
-// JAUNĀKĀS ZIŅAS — LSM RSS (caur AllOrigins proxy)
-// ========================
-(function setupNews() {
-  const RSS_URL = "https://www.lsm.lv/rss/?lang=lv&catid=14";
-  const listEl = document.getElementById("news-list");
-  const updatedEl = document.getElementById("news-updated");
+    // ========================
+    // JAUNĀKĀS ZIŅAS — LSM RSS (caur AllOrigins proxy)
+    // ========================
+    (function setupNews() {
+      const RSS_URL = "https://www.lsm.lv/rss/?lang=lv&catid=14";
+      const listEl = document.getElementById("news-list");
+      const updatedEl = document.getElementById("news-updated");
 
-  async function loadNews() {
-    try {
-const proxyUrl =
-  "https://corsproxy.io/?" + encodeURIComponent(RSS_URL);
+      async function loadNews() {
+        try {
+          const proxyUrl =
+            "https://api.allorigins.win/raw?url=" + encodeURIComponent(RSS_URL);
 
+          const res = await fetch(proxyUrl);
+          if (!res.ok) throw new Error("Tīkla kļūda (RSS proxy)");
+          const text = await res.text();
 
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("Tīkla kļūda (RSS proxy)");
-      const text = await res.text();
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(text, "application/xml");
+          const items = Array.from(xml.querySelectorAll("item")).slice(0, 6);
 
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(text, "application/xml");
-      const items = Array.from(xml.querySelectorAll("item")).slice(0, 6);
+          listEl.innerHTML = "";
 
-      listEl.innerHTML = "";
+          if (!items.length) {
+            listEl.innerHTML =
+              '<li class="news-item"><div class="news-title-line">Nav ziņu.</div></li>';
+            updatedEl.textContent = "";
+            return;
+          }
 
-      if (!items.length) {
-        listEl.innerHTML =
-          '<li class="news-item"><div class="news-title-line">Nav ziņu.</div></li>';
-        updatedEl.textContent = "";
-        return;
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, "0");
+          const mm = String(now.getMinutes()).padStart(2, "0");
+          updatedEl.textContent = `Atjaunots ${hh}:${mm}`;
+
+          items.forEach((item) => {
+            const title = item.querySelector("title")?.textContent || "(bez nosaukuma)";
+            const link = item.querySelector("link")?.textContent || "#";
+            const pubDate = item.querySelector("pubDate")?.textContent || "";
+            let timeStr = "";
+            if (pubDate) {
+              const d = new Date(pubDate);
+              if (!isNaN(d.getTime())) {
+                const h = String(d.getHours()).padStart(2, "0");
+                const m = String(d.getMinutes()).padStart(2, "0");
+                timeStr = `${h}:${m}`;
+              }
+            }
+
+            const li = document.createElement("li");
+            li.className = "news-item";
+            li.innerHTML = `
+              <div class="news-title-line"><a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a></div>
+              ${
+                timeStr
+                  ? `<div class="news-meta">${timeStr}</div>`
+                  : '<div class="news-meta">&nbsp;</div>'
+              }
+            `;
+            listEl.appendChild(li);
+          });
+        } catch (e) {
+          console.error(e);
+          listEl.innerHTML =
+            '<li class="news-item"><div class="news-title-line">Neizdevās ielādēt LSM RSS (CORS/proxy problēma).</div></li>';
+          updatedEl.textContent = "";
+        }
       }
 
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      updatedEl.textContent = `Atjaunots ${hh}:${mm}`;
+      loadNews();
+      setInterval(loadNews, 10 * 60 * 1000);
+    })();
 
-      items.forEach((item) => {
-        const title = item.querySelector("title")?.textContent || "(bez nosaukuma)";
-        const link = item.querySelector("link")?.textContent || "#";
-        const pubDate = item.querySelector("pubDate")?.textContent || "";
-        let timeStr = "";
-        if (pubDate) {
-          const d = new Date(pubDate);
-          if (!isNaN(d.getTime())) {
-            const h = String(d.getHours()).padStart(2, "0");
-            const m = String(d.getMinutes()).padStart(2, "0");
-            timeStr = `${h}:${m}`;
-          }
-        }
+    // ========================
+    // CUSTOM ICS KALENDĀRI (bez iframe)
+    // ========================
 
-        const li = document.createElement("li");
-        li.className = "news-item";
-        li.innerHTML = `
-          <div class="news-title-line"><a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a></div>
-          ${
-            timeStr
-              ? `<div class="news-meta">${timeStr}</div>`
-              : '<div class="news-meta">&nbsp;</div>'
-          }
-        `;
-        listEl.appendChild(li);
+    // ŠEIT IELIEC SAVUS ICS LINKUS NO GOOGLE CALENDAR
+    const ICS_URL_JANIS =
+      "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
+
+    // šeit jāieliek TAVAS draudzenes īstais ICS links
+    const ICS_URL_DRAUDZENE =
+      "PASTE_DRAUDZENES_ICS_URL_TE";
+
+    // izmantojam AllOrigins CORS proxy, lai varētu lasīt ICS
+    function fetchICS(url) {
+      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      return fetch(proxied).then((r) => {
+        if (!r.ok) throw new Error("ICS ielādes kļūda");
+        return r.text();
       });
-    } catch (e) {
-      console.error(e);
-      listEl.innerHTML =
-        '<li class="news-item"><div class="news-title-line">Neizdevās ielādēt LSM RSS (CORS/proxy problēma).</div></li>';
-      updatedEl.textContent = "";
     }
-  }
-
-  loadNews();
-  setInterval(loadNews, 10 * 60 * 1000);
-})();
-
-// ========================
-// CUSTOM ICS KALENDĀRI (bez iframe)
-// ========================
-
-// ŠEIT IELIEC SAVUS ICS LINKUS NO GOOGLE CALENDAR
-const ICS_URL_JANIS = "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
-
-// šeit jāieliek TAVAS draudzenes īstais ICS links, piemēram:
-const ICS_URL_DRAUDZENE = "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
-
-// izmantojam citu CORS proxy, lai varētu lasīt ICS
-function fetchICS(url) {
-  const proxied = "https://corsproxy.io/?" + encodeURIComponent(url);
-  return fetch(proxied).then((r) => {
-    if (!r.ok) throw new Error("ICS ielādes kļūda");
-    return r.text();
-  });
-}
 
     // vienkāršs ICS parseris (DTSTART + SUMMARY)
     function parseICS(text) {
@@ -957,7 +958,7 @@ function fetchICS(url) {
       const header = document.createElement("div");
       header.className = "month-calendar-header";
       const weekdays = ["P", "O", "T", "C", "Pk", "S", "Sv"];
-      weekdays.forEach(d => {
+      weekdays.forEach((d) => {
         const div = document.createElement("div");
         div.textContent = d;
         header.appendChild(div);
@@ -993,7 +994,7 @@ function fetchICS(url) {
           evWrap.className = "day-events";
 
           const dayEvents = eventsMap[key] || [];
-          dayEvents.forEach(ev => {
+          dayEvents.forEach((ev) => {
             const p = document.createElement("div");
             const dot = document.createElement("span");
             dot.className = "day-event-dot " + (options.colorClass || "");
@@ -1031,7 +1032,7 @@ function fetchICS(url) {
 
         const [icsJanis, icsDraudzene] = await Promise.all([
           fetchICS(ICS_URL_JANIS),
-          fetchICS(ICS_URL_DRAUDZENE)
+          fetchICS(ICS_URL_DRAUDZENE),
         ]);
 
         const eventsJanis = parseICS(icsJanis);
