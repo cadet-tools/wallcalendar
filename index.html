@@ -852,205 +852,207 @@
       setInterval(loadNews, 10 * 60 * 1000);
     })();
 
-    // ========================
-    // CUSTOM ICS KALENDĀRI (bez iframe)
-    // ========================
+   // ========================
+// CUSTOM ICS KALENDĀRI (bez iframe)
+// ========================
 
-    // ŠEIT IELIEC SAVUS ICS LINKUS NO GOOGLE CALENDAR
-    const ICS_URL_JANIS =
-      "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
+// ŠEIT IELIEC SAVUS ICS LINKUS NO GOOGLE CALENDAR
+const ICS_URL_JANIS =
+  "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
 
-    // šeit jāieliek TAVAS draudzenes īstais ICS links
-    const ICS_URL_DRAUDZENE =
-      "PASTE_DRAUDZENES_ICS_URL_TE";
+// šeit jāieliek TAVAS draudzenes īstais ICS links (PILNS https://.../basic.ics)
+const ICS_URL_DRAUDZENE =
+  "PASTE_DRAUDZENES_ICS_URL_TE"; // <- nomaini uz īsto
 
-    // izmantojam AllOrigins CORS proxy, lai varētu lasīt ICS
-    function fetchICS(url) {
-      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-      return fetch(proxied).then((r) => {
-        if (!r.ok) throw new Error("ICS ielādes kļūda");
-        return r.text();
+// izmantojam AllOrigins CORS proxy, lai varētu lasīt ICS
+function fetchICS(url) {
+  const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+  return fetch(proxied).then((r) => {
+    if (!r.ok) throw new Error("ICS ielādes kļūda");
+    return r.text();
+  });
+}
+
+// vienkāršs ICS parseris (DTSTART + SUMMARY)
+function parseICS(text) {
+  const events = [];
+  const lines = text.split(/\r?\n/);
+  let current = null;
+
+  for (let line of lines) {
+    if (line.startsWith("BEGIN:VEVENT")) {
+      current = {};
+    } else if (line.startsWith("END:VEVENT")) {
+      if (current && current.start && current.summary) events.push(current);
+      current = null;
+    } else if (current) {
+      if (line.startsWith("DTSTART")) {
+        const [, value] = line.split(":");
+        current.start = parseICSDate(value.trim());
+      } else if (line.startsWith("SUMMARY")) {
+        const [, value] = line.split(":");
+        current.summary = (value || "").trim();
+      }
+    }
+  }
+  return events;
+}
+
+// atbalsta formas YYYYMMDD un YYYYMMDDTHHmmssZ
+function parseICSDate(val) {
+  if (!val) return null;
+  if (/^\d{8}$/.test(val)) {
+    const y = parseInt(val.slice(0, 4), 10);
+    const m = parseInt(val.slice(4, 6), 10) - 1;
+    const d = parseInt(val.slice(6, 8), 10);
+    return new Date(y, m, d);
+  }
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/.exec(val);
+  if (match) {
+    const [_, y, m, d, hh, mm, ss] = match;
+    return new Date(
+      Date.UTC(
+        parseInt(y, 10),
+        parseInt(m, 10) - 1,
+        parseInt(d, 10),
+        parseInt(hh, 10),
+        parseInt(mm, 10),
+        parseInt(ss, 10)
+      )
+    );
+  }
+  return new Date(val);
+}
+
+function eventsByDay(events, year, month) {
+  const map = {};
+  for (const ev of events) {
+    if (!ev.start) continue;
+    const d = ev.start;
+    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+    const key = d.toISOString().slice(0, 10);
+    if (!map[key]) map[key] = [];
+    map[key].push(ev);
+  }
+  return map;
+}
+
+function renderMonthCalendar(containerId, events, options = {}) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const firstJsDay = first.getDay(); // 0=Sv
+  const offset = (firstJsDay + 6) % 7; // Monday-first
+
+  const eventsMap = eventsByDay(events, year, month);
+
+  container.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "month-calendar-header";
+  const weekdays = ["P", "O", "T", "C", "Pk", "S", "Sv"];
+  weekdays.forEach((d) => {
+    const div = document.createElement("div");
+    div.textContent = d;
+    header.appendChild(div);
+  });
+
+  const grid = document.createElement("div");
+  grid.className = "month-calendar-grid";
+
+  const totalCells = 42; // 7x6
+  let dayNum = 1;
+
+  for (let i = 0; i < totalCells; i++) {
+    const cell = document.createElement("div");
+    cell.className = "day-cell";
+
+    if (i >= offset && dayNum <= daysInMonth) {
+      const cellDate = new Date(year, month, dayNum);
+      const key = cellDate.toISOString().slice(0, 10);
+      const today = new Date();
+
+      const num = document.createElement("div");
+      num.className = "day-number";
+      if (
+        cellDate.getFullYear() === today.getFullYear() &&
+        cellDate.getMonth() === today.getMonth() &&
+        cellDate.getDate() === today.getDate()
+      ) {
+        num.classList.add("today");
+      }
+      num.textContent = dayNum;
+
+      const evWrap = document.createElement("div");
+      evWrap.className = "day-events";
+
+      const dayEvents = eventsMap[key] || [];
+      dayEvents.forEach((ev) => {
+        const p = document.createElement("div");
+        const dot = document.createElement("span");
+        dot.className = "day-event-dot " + (options.colorClass || "");
+        p.appendChild(dot);
+        p.appendChild(document.createTextNode(ev.summary));
+        evWrap.appendChild(p);
       });
+
+      cell.appendChild(num);
+      cell.appendChild(evWrap);
+
+      dayNum++;
+    } else {
+      cell.classList.add("outside");
     }
 
-    // vienkāršs ICS parseris (DTSTART + SUMMARY)
-    function parseICS(text) {
-      const events = [];
-      const lines = text.split(/\r?\n/);
-      let current = null;
+    grid.appendChild(cell);
+  }
 
-      for (let line of lines) {
-        if (line.startsWith("BEGIN:VEVENT")) {
-          current = {};
-        } else if (line.startsWith("END:VEVENT")) {
-          if (current && current.start && current.summary) events.push(current);
-          current = null;
-        } else if (current) {
-          if (line.startsWith("DTSTART")) {
-            const [, value] = line.split(":");
-            current.start = parseICSDate(value.trim());
-          } else if (line.startsWith("SUMMARY")) {
-            const [, value] = line.split(":");
-            current.summary = (value || "").trim();
-          }
-        }
-      }
-      return events;
-    }
+  const wrapper = document.createElement("div");
+  wrapper.className = "month-calendar";
+  wrapper.appendChild(header);
+  wrapper.appendChild(grid);
 
-    // atbalsta formas YYYYMMDD un YYYYMMDDTHHmmssZ
-    function parseICSDate(val) {
-      if (!val) return null;
-      if (/^\d{8}$/.test(val)) {
-        const y = parseInt(val.slice(0, 4), 10);
-        const m = parseInt(val.slice(4, 6), 10) - 1;
-        const d = parseInt(val.slice(6, 8), 10);
-        return new Date(y, m, d);
-      }
-      const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/.exec(val);
-      if (match) {
-        const [_, y, m, d, hh, mm, ss] = match;
-        return new Date(
-          Date.UTC(
-            parseInt(y, 10),
-            parseInt(m, 10) - 1,
-            parseInt(d, 10),
-            parseInt(hh, 10),
-            parseInt(mm, 10),
-            parseInt(ss, 10)
-          )
-        );
-      }
-      return new Date(val);
-    }
+  container.appendChild(wrapper);
+}
 
-    function eventsByDay(events, year, month) {
-      const map = {};
-      for (const ev of events) {
-        if (!ev.start) continue;
-        const d = ev.start;
-        if (d.getFullYear() !== year || d.getMonth() !== month) continue;
-        const key = d.toISOString().slice(0, 10);
-        if (!map[key]) map[key] = [];
-        map[key].push(ev);
-      }
-      return map;
-    }
+// helper, lai katru kalendāru lādētu atsevišķi
+async function loadSingleCalendar(icsUrl, containerId, colorClass) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
 
-    function renderMonthCalendar(containerId, events, options = {}) {
-      const container = document.getElementById(containerId);
-      if (!container) return;
+  // ja ICS nav ielikts vai ir placeholder, neraujam visu lejā
+  if (!icsUrl || !icsUrl.startsWith("http")) {
+    container.textContent = "Nav norādīts ICS URL.";
+    return;
+  }
 
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
+  try {
+    const icsText = await fetchICS(icsUrl);
+    const events = parseICS(icsText);
+    renderMonthCalendar(containerId, events, { colorClass });
+  } catch (e) {
+    console.error("ICS kļūda", containerId, e);
+    container.textContent = "Neizdevās ielādēt kalendāru (ICS).";
+  }
+}
 
-      const first = new Date(year, month, 1);
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
+async function loadCalendars() {
+  await Promise.all([
+    loadSingleCalendar(ICS_URL_JANIS, "calendar-janis", "me"),
+    loadSingleCalendar(ICS_URL_DRAUDZENE, "calendar-draudzene", "partner"),
+  ]);
+}
 
-      const firstJsDay = first.getDay(); // 0=Sv
-      const offset = (firstJsDay + 6) % 7; // Monday-first
+loadCalendars();
+setInterval(loadCalendars, 15 * 60 * 1000);
 
-      const eventsMap = eventsByDay(events, year, month);
-
-      container.innerHTML = "";
-
-      const header = document.createElement("div");
-      header.className = "month-calendar-header";
-      const weekdays = ["P", "O", "T", "C", "Pk", "S", "Sv"];
-      weekdays.forEach((d) => {
-        const div = document.createElement("div");
-        div.textContent = d;
-        header.appendChild(div);
-      });
-
-      const grid = document.createElement("div");
-      grid.className = "month-calendar-grid";
-
-      const totalCells = 42; // 7x6
-      let dayNum = 1;
-
-      for (let i = 0; i < totalCells; i++) {
-        const cell = document.createElement("div");
-        cell.className = "day-cell";
-
-        if (i >= offset && dayNum <= daysInMonth) {
-          const cellDate = new Date(year, month, dayNum);
-          const key = cellDate.toISOString().slice(0, 10);
-          const today = new Date();
-
-          const num = document.createElement("div");
-          num.className = "day-number";
-          if (
-            cellDate.getFullYear() === today.getFullYear() &&
-            cellDate.getMonth() === today.getMonth() &&
-            cellDate.getDate() === today.getDate()
-          ) {
-            num.classList.add("today");
-          }
-          num.textContent = dayNum;
-
-          const evWrap = document.createElement("div");
-          evWrap.className = "day-events";
-
-          const dayEvents = eventsMap[key] || [];
-          dayEvents.forEach((ev) => {
-            const p = document.createElement("div");
-            const dot = document.createElement("span");
-            dot.className = "day-event-dot " + (options.colorClass || "");
-            p.appendChild(dot);
-            p.appendChild(document.createTextNode(ev.summary));
-            evWrap.appendChild(p);
-          });
-
-          cell.appendChild(num);
-          cell.appendChild(evWrap);
-
-          dayNum++;
-        } else {
-          cell.classList.add("outside");
-        }
-
-        grid.appendChild(cell);
-      }
-
-      const wrapper = document.createElement("div");
-      wrapper.className = "month-calendar";
-      wrapper.appendChild(header);
-      wrapper.appendChild(grid);
-
-      container.appendChild(wrapper);
-    }
-
-    async function loadCalendars() {
-      try {
-        if (!ICS_URL_JANIS || !ICS_URL_DRAUDZENE) {
-          document.getElementById("calendar-janis").textContent = "Norādi ICS URL Jānim.";
-          document.getElementById("calendar-draudzene").textContent = "Norādi ICS URL draudzenei.";
-          return;
-        }
-
-        const [icsJanis, icsDraudzene] = await Promise.all([
-          fetchICS(ICS_URL_JANIS),
-          fetchICS(ICS_URL_DRAUDZENE),
-        ]);
-
-        const eventsJanis = parseICS(icsJanis);
-        const eventsDraudzene = parseICS(icsDraudzene);
-
-        renderMonthCalendar("calendar-janis", eventsJanis, { colorClass: "me" });
-        renderMonthCalendar("calendar-draudzene", eventsDraudzene, { colorClass: "partner" });
-      } catch (e) {
-        console.error(e);
-        document.getElementById("calendar-janis").textContent =
-          "Neizdevās ielādēt kalendāru (ICS).";
-        document.getElementById("calendar-draudzene").textContent =
-          "Neizdevās ielādēt kalendāru (ICS).";
-      }
-    }
-
-    loadCalendars();
-    setInterval(loadCalendars, 15 * 60 * 1000);
 
     // ========================
     // FONA ATTĒLU BIBLIOTĒKA — ik pēc 6 sekundēm
