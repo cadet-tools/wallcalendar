@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="lv">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sienas kalendārs — info panelis</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --accent: #437e12;
+      --accent-soft: rgba(67, 126, 18, 0.45);
+      --text: #f9fafb;
+      --text-muted: #cbd5f5;
+      --panel: rgba(5, 10, 25, 0.78);
+      --panel-soft: rgba(7, 12, 30, 0.9);
+      --border-soft: rgba(148, 163, 184, 0.6);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --blur: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+    }
+
+    body {
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #000;
+      overflow: hidden; /* panelis bez skroļiem */
+    }
+
+    /* ===== FONA SLAIDŠOVS ===== */
+    #bg-slideshow {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      overflow: hidden;
+    }
+
+    #bg-photo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: brightness(0.8) saturate(1.15);
+      transform: scale(1.08);
+      transition: opacity 0.9s ease, transform 11s ease-out;
+      opacity: 0;
+    }
+
+    #bg-photo.visible {
+      opacity: 1;
+      transform: scale(1.02);
+    }
+
+    /* tumšā maska virs fona, lai teksts ir salasāms */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(circle at top, rgba(15, 23, 42, 0.35), transparent 55%),
+        linear-gradient(to right, rgba(3, 7, 18, 0.9) 0%, rgba(3, 7, 18, 0.8) 40%, rgba(3, 7, 18, 0.7) 100%);
+      pointer-events: none;
+    }
+
+    /* ===== GALVENAIS IZZKĀRTOJUMS ===== */
+    .wall {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      width: 100vw;
+      max-width: 1920px;
+      margin: 0 auto;
+      padding: 1.8rem 2.4rem;
+      display: grid;
+      grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr);
+      gap: 2rem;
+    }
+
+    .left-column {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 1.4rem;
+    }
+
+    .right-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      min-height: 0;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-soft);
+      backdrop-filter: blur(var(--blur));
+      box-shadow: var(--shadow);
+      padding: 1.2rem 1.4rem;
+    }
+
+    .card-soft {
+      background: var(--panel-soft);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      backdrop-filter: blur(var(--blur));
+      box-shadow: var(--shadow);
+      padding: 1.4rem 1.6rem;
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    /* ===== PULKSTENIS + DATUMS ===== */
+    .clock-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .clock-time {
+      font-size: clamp(3.2rem, 5.4vw, 4rem);
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .clock-date {
+      font-size: clamp(1rem, 1.7vw, 1.3rem);
+      color: var(--text-muted);
+    }
+
+    .clock-location {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      margin-top: 0.25rem;
+      color: var(--text-muted);
+    }
+
+    /* ===== LAIKAPSTĀKĻI ===== */
+    .weather-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .weather-main {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .weather-temp {
+      font-size: 2.4rem;
+      font-weight: 500;
+    }
+
+    .weather-main-right {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      font-size: 0.95rem;
+    }
+
+    .weather-desc {
+      color: var(--text-muted);
+    }
+
+    .weather-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .weather-forecast-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+      font-size: 0.8rem;
+    }
+
+    .forecast-item {
+      background: rgba(15, 23, 42, 0.82);
+      border-radius: var(--radius-md);
+      padding: 0.4rem 0.5rem;
+      text-align: center;
+    }
+
+    .forecast-day {
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+    }
+
+    .forecast-icon {
+      width: 32px;
+      height: 32px;
+      margin: 0.1rem auto;
+    }
+
+    .forecast-temp {
+      font-size: 0.9rem;
+    }
+
+    /* ===== VĀRDA DIENAS + ZIŅAS ===== */
+    .bottom-left {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 0.8rem;
+      min-height: 0;
+    }
+
+    .nameday-card {
+      padding: 0.9rem 1.1rem;
+      border-radius: var(--radius-md);
+      background: rgba(12, 20, 40, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      font-size: 0.9rem;
+    }
+
+    .nameday-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .nameday-names {
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .news-card {
+      padding: 0.9rem 1.1rem;
+      border-radius: var(--radius-md);
+      background: rgba(12, 20, 40, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .news-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.3rem;
+    }
+
+    .news-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+    }
+
+    .news-updated {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .news-list {
+      list-style: none;
+      margin-top: 0.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      overflow: hidden;
+    }
+
+    .news-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.05rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(30, 64, 175, 0.4);
+    }
+
+    .news-item:last-child {
+      border-bottom: none;
+    }
+
+    .news-title-line {
+      font-size: 0.85rem;
+      line-height: 1.25;
+    }
+
+    .news-title-line a {
+      color: #e5e7eb;
+      text-decoration: none;
+    }
+
+    .news-title-line a:hover {
+      text-decoration: underline;
+    }
+
+    .news-meta {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== KALENDĀRI ===== */
+    .calendar-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      min-height: 0;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .calendar-title {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+    }
+
+    .calendar-legend {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .legend-dot {
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 999px;
+    }
+
+    .dot-me {
+      background: linear-gradient(135deg, var(--accent), #a3e635);
+    }
+
+    .dot-partner {
+      background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+    }
+
+    /* liels, aptumšots, caurspīdīgs konteiners kalendāriem */
+    .calendar-frame-wrap {
+      flex: 1;
+      min-height: 0;
+      background: rgba(0, 0, 0, 0.55); /* aptumšots + caurspīdīgs */
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      box-shadow: var(--shadow);
+      padding: 0.7rem;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); /* kalendāri viens zem otra */
+      gap: 0.6rem;
+    }
+
+    .calendar-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 0.25rem;
+    }
+
+    .calendar-name {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-muted);
+    }
+
+    .calendar-note {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* ==== CUSTOM MĒNEŠA KALENDĀRA STILS (bez iframe) ==== */
+    .month-calendar {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 0.35rem;
+      height: 100%;
+    }
+
+    .month-calendar-header {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #9ca3af;
+    }
+
+    .month-calendar-header div {
+      text-align: center;
+    }
+
+    .month-calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-auto-rows: minmax(0, 1fr);
+      gap: 2px;
+    }
+
+    .day-cell {
+      border-radius: 10px;
+      padding: 4px;
+      background: rgba(15, 23, 42, 0.9);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .day-cell.outside {
+      opacity: 0.25;
+    }
+
+    .day-number {
+      font-size: 0.8rem;
+      color: #e5e7eb;
+    }
+
+    .day-number.today {
+      background: rgba(67, 126, 18, 0.9);
+      color: #f9fafb;
+      border-radius: 999px;
+      padding: 0 6px;
+      display: inline-block;
+    }
+
+    .day-events {
+      margin-top: 2px;
+      font-size: 0.7rem;
+      line-height: 1.25;
+      color: #d1d5db;
+      overflow: hidden;
+    }
+
+    .day-event-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      margin-right: 3px;
+    }
+
+    .day-event-dot.me {
+      background: linear-gradient(135deg, #437e12, #a3e635);
+    }
+
+    .day-event-dot.partner {
+      background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+    }
+
+    /* mazākiem ekrāniem (ja atvērsi laptopā) */
+    @media (max-width: 1100px) {
+      .wall {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+      }
+      .right-column {
+        min-height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- FONA SLAIDŠOVS -->
+  <div id="bg-slideshow">
+    <img id="bg-photo" src="" alt="Fona attēls" />
+  </div>
+
+  <main class="wall">
+    <!-- KREISĀ KOLONNA -->
+    <section class="left-column">
+      <!-- Pulkstenis + datums -->
+      <section class="card clock-card">
+        <div class="clock-time" id="clock-time">00:00</div>
+        <div class="clock-date" id="clock-date">Pirmdiena, 1. janvāris 2025. g.</div>
+        <div class="clock-location">Rīga, Latvija</div>
+      </section>
+
+      <!-- Laikapstākļi -->
+      <section class="card weather-card">
+        <div class="card-title">Laikapstākļi</div>
+        <div class="weather-main">
+          <div class="weather-temp" id="weather-temp">--°C</div>
+          <div class="weather-main-right">
+            <div id="weather-desc" class="weather-desc">Ielādē...</div>
+            <div id="weather-meta" class="weather-meta">Rīga • ...</div>
+          </div>
+        </div>
+        <div class="weather-forecast-row" id="weather-forecast">
+          <!-- 4 nākamo dienu kartiņas -->
+        </div>
+      </section>
+
+      <!-- Vārda dienas + ziņas -->
+      <section class="bottom-left">
+        <div class="nameday-card">
+          <div class="nameday-label">Šodien vārda diena</div>
+          <div class="nameday-names" id="nameday-names">Ielādē vārda dienas...</div>
+        </div>
+
+        <div class="news-card">
+          <div class="news-header">
+            <div class="news-title">Jaunākās ziņas — LSM</div>
+            <div class="news-updated" id="news-updated"></div>
+          </div>
+          <ul class="news-list" id="news-list">
+            <li class="news-item">
+              <div class="news-title-line">Ielādē ziņas...</div>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </section>
+
+    <!-- LABĀ KOLONNA — 2 custom kalendāri viens zem otra -->
+    <section class="right-column">
+      <section class="calendar-panel">
+        <div class="calendar-header">
+          <div class="calendar-title">Mēneša kalendāri</div>
+          <div class="calendar-legend">
+            <div class="legend-item">
+              <span class="legend-dot dot-me"></span>
+              <span>Jānis</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot dot-partner"></span>
+              <span>Draudzene</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="calendar-frame-wrap">
+          <div class="calendar-col">
+            <div class="calendar-name">Jāņa kalendārs</div>
+            <div id="calendar-janis"></div>
+          </div>
+
+          <div class="calendar-col">
+            <div class="calendar-name">Draudzenes kalendārs</div>
+            <div id="calendar-draudzene"></div>
+          </div>
+        </div>
+
+        <div class="calendar-note">
+          Dati nāk no Google Calendar ICS linkiem. Dizainu (krāsas, fonu, šodienas izcelšanu) pilnībā kontrolē šī lapa.
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    // ========================
+    // PULKSTENIS + DATUMS
+    // ========================
+    (function setupClock() {
+      const timeEl = document.getElementById("clock-time");
+      const dateEl = document.getElementById("clock-date");
+
+      const days = [
+        "Svētdiena",
+        "Pirmdiena",
+        "Otrdiena",
+        "Trešdiena",
+        "Ceturtdiena",
+        "Piektdiena",
+        "Sestdiena",
+      ];
+      const months = [
+        "janvāris",
+        "februāris",
+        "marts",
+        "aprīlis",
+        "maijs",
+        "jūnijs",
+        "jūlijs",
+        "augusts",
+        "septembris",
+        "oktobris",
+        "novembris",
+        "decembris",
+      ];
+
+      function updateClock() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
+        timeEl.textContent = `${h}:${m}`;
+
+        const weekday = days[now.getDay()];
+        const d = now.getDate();
+        const monthName = months[now.getMonth()];
+        const y = now.getFullYear();
+        dateEl.textContent = `${weekday}, ${d}. ${monthName} ${y}. g.`;
+      }
+
+      updateClock();
+      setInterval(updateClock, 1000);
+    })();
+
+    // ========================
+    // LAIKAPSTĀKĻI — OpenWeatherMap
+    // ========================
+    (function setupWeather() {
+      const API_KEY = "YOUR_OPENWEATHERMAP_API_KEY"; // <--- ŠEIT IELIEC SAVU KEY
+      const LAT = 56.95;
+      const LON = 24.11;
+      const city = "Rīga";
+
+      const tempEl = document.getElementById("weather-temp");
+      const descEl = document.getElementById("weather-desc");
+      const metaEl = document.getElementById("weather-meta");
+      const forecastWrap = document.getElementById("weather-forecast");
+
+      if (!API_KEY || API_KEY === "YOUR_OPENWEATHERMAP_API_KEY") {
+        descEl.textContent = "Ieraksti OpenWeatherMap API atslēgu!";
+        metaEl.textContent = "";
+        return;
+      }
+
+      async function loadWeather() {
+        try {
+          const currentUrl =
+            `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}` +
+            `&appid=${API_KEY}&units=metric&lang=lv`;
+          const forecastUrl =
+            `https://api.openweathermap.org/data/2.5/forecast?lat=${LAT}&lon=${LON}` +
+            `&appid=${API_KEY}&units=metric&lang=lv`;
+
+          const [currentRes, forecastRes] = await Promise.all([
+            fetch(currentUrl),
+            fetch(forecastUrl),
+          ]);
+
+          if (!currentRes.ok || !forecastRes.ok) throw new Error("Tīkla kļūda");
+
+          const current = await currentRes.json();
+          const forecast = await forecastRes.json();
+
+          // pašreizējais
+          const t = Math.round(current.main.temp);
+          const desc = current.weather?.[0]?.description || "Laikapstākļi";
+          tempEl.textContent = `${t}°C`;
+          descEl.textContent = desc.charAt(0).toUpperCase() + desc.slice(1);
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, "0");
+          const mm = String(now.getMinutes()).padStart(2, "0");
+          metaEl.textContent = `${city} • Atjaunināts ${hh}:${mm}`;
+
+          // nākamās 4 dienas
+          const items = forecast.list || [];
+          const daysDone = new Set();
+          const cards = [];
+          const weekdayShort = ["Sv", "Pr", "Ot", "Tr", "Ce", "Pk", "Se"];
+
+          for (const item of items) {
+            const dt = new Date(item.dt * 1000);
+            const dateKey = dt.toISOString().slice(0, 10);
+
+            const todayKey = new Date().toISOString().slice(0, 10);
+            if (dateKey <= todayKey) continue;
+
+            if (daysDone.has(dateKey)) continue;
+            daysDone.add(dateKey);
+
+            const dayName = weekdayShort[dt.getDay()];
+            const tempDay = Math.round(item.main.temp);
+            const icon = item.weather?.[0]?.icon;
+            const iconUrl = icon
+              ? `https://openweathermap.org/img/wn/${icon}.png`
+              : "";
+
+            cards.push({ dayName, tempDay, iconUrl });
+
+            if (cards.length >= 4) break;
+          }
+
+          forecastWrap.innerHTML = "";
+          if (!cards.length) {
+            forecastWrap.textContent = "Nav prognozes datu.";
+            return;
+          }
+
+          for (const card of cards) {
+            const div = document.createElement("div");
+            div.className = "forecast-item";
+            div.innerHTML = `
+              <div class="forecast-day">${card.dayName}</div>
+              ${
+                card.iconUrl
+                  ? `<img class="forecast-icon" src="${card.iconUrl}" alt="">`
+                  : ""
+              }
+              <div class="forecast-temp">${card.tempDay}°C</div>
+            `;
+            forecastWrap.appendChild(div);
+          }
+        } catch (e) {
+          console.error(e);
+          descEl.textContent = "Neizdevās ielādēt laikapstākļus";
+          metaEl.textContent = "Pārbaudi internetu vai API atslēgu";
+        }
+      }
+
+      loadWeather();
+      setInterval(loadWeather, 15 * 60 * 1000); // ik pēc 15 min
+    })();
+
+    // ========================
+    // VĀRDA DIENAS — JSON
+    // ========================
+    (function setupNamedays() {
+      const targetEl = document.getElementById("nameday-names");
+      const DATA_URL =
+        "https://gist.githubusercontent.com/skakri/5225055/raw/8ee27d7f441b9ece8301182bcbb1c1985b01f65a/vardadienas.json";
+
+      async function loadNamedays() {
+        try {
+          const res = await fetch(DATA_URL);
+          if (!res.ok) throw new Error("Tīkla kļūda");
+          const data = await res.json();
+
+          const now = new Date();
+          const monthIndex = now.getMonth();
+          const dayIndex = now.getDate() - 1;
+
+          const monthData = data[monthIndex] || {};
+          const names = monthData[String(dayIndex)] || [];
+          if (!names.length) {
+            targetEl.textContent = "Nav datu par vārda dienām.";
+            return;
+          }
+          targetEl.textContent = names.join(", ");
+        } catch (e) {
+          console.error(e);
+          targetEl.textContent = "Neizdevās ielādēt vārda dienu sarakstu.";
+        }
+      }
+
+      loadNamedays();
+      setInterval(loadNamedays, 24 * 60 * 60 * 1000);
+    })();
+
+// ========================
+// JAUNĀKĀS ZIŅAS — LSM RSS (caur AllOrigins proxy)
+// ========================
+(function setupNews() {
+  const RSS_URL = "https://www.lsm.lv/rss/?lang=lv&catid=14";
+  const listEl = document.getElementById("news-list");
+  const updatedEl = document.getElementById("news-updated");
+
+  async function loadNews() {
+    try {
+const proxyUrl =
+  "https://corsproxy.io/?" + encodeURIComponent(RSS_URL);
+
+
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error("Tīkla kļūda (RSS proxy)");
+      const text = await res.text();
+
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, "application/xml");
+      const items = Array.from(xml.querySelectorAll("item")).slice(0, 6);
+
+      listEl.innerHTML = "";
+
+      if (!items.length) {
+        listEl.innerHTML =
+          '<li class="news-item"><div class="news-title-line">Nav ziņu.</div></li>';
+        updatedEl.textContent = "";
+        return;
+      }
+
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      updatedEl.textContent = `Atjaunots ${hh}:${mm}`;
+
+      items.forEach((item) => {
+        const title = item.querySelector("title")?.textContent || "(bez nosaukuma)";
+        const link = item.querySelector("link")?.textContent || "#";
+        const pubDate = item.querySelector("pubDate")?.textContent || "";
+        let timeStr = "";
+        if (pubDate) {
+          const d = new Date(pubDate);
+          if (!isNaN(d.getTime())) {
+            const h = String(d.getHours()).padStart(2, "0");
+            const m = String(d.getMinutes()).padStart(2, "0");
+            timeStr = `${h}:${m}`;
+          }
+        }
+
+        const li = document.createElement("li");
+        li.className = "news-item";
+        li.innerHTML = `
+          <div class="news-title-line"><a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a></div>
+          ${
+            timeStr
+              ? `<div class="news-meta">${timeStr}</div>`
+              : '<div class="news-meta">&nbsp;</div>'
+          }
+        `;
+        listEl.appendChild(li);
+      });
+    } catch (e) {
+      console.error(e);
+      listEl.innerHTML =
+        '<li class="news-item"><div class="news-title-line">Neizdevās ielādēt LSM RSS (CORS/proxy problēma).</div></li>';
+      updatedEl.textContent = "";
+    }
+  }
+
+  loadNews();
+  setInterval(loadNews, 10 * 60 * 1000);
+})();
+
+// ========================
+// CUSTOM ICS KALENDĀRI (bez iframe)
+// ========================
+
+// ŠEIT IELIEC SAVUS ICS LINKUS NO GOOGLE CALENDAR
+const ICS_URL_JANIS = "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
+
+// šeit jāieliek TAVAS draudzenes īstais ICS links, piemēram:
+const ICS_URL_DRAUDZENE = "https://calendar.google.com/calendar/ical/d95ee15245c455c5044bce37af23bb197fc656faa5ff1de1d61d851ff963eb5a%40group.calendar.google.com/private-c450b9d4458a78c59265aa67f34182b6/basic.ics";
+
+// izmantojam citu CORS proxy, lai varētu lasīt ICS
+function fetchICS(url) {
+  const proxied = "https://corsproxy.io/?" + encodeURIComponent(url);
+  return fetch(proxied).then((r) => {
+    if (!r.ok) throw new Error("ICS ielādes kļūda");
+    return r.text();
+  });
+}
+
+    // vienkāršs ICS parseris (DTSTART + SUMMARY)
+    function parseICS(text) {
+      const events = [];
+      const lines = text.split(/\r?\n/);
+      let current = null;
+
+      for (let line of lines) {
+        if (line.startsWith("BEGIN:VEVENT")) {
+          current = {};
+        } else if (line.startsWith("END:VEVENT")) {
+          if (current && current.start && current.summary) events.push(current);
+          current = null;
+        } else if (current) {
+          if (line.startsWith("DTSTART")) {
+            const [, value] = line.split(":");
+            current.start = parseICSDate(value.trim());
+          } else if (line.startsWith("SUMMARY")) {
+            const [, value] = line.split(":");
+            current.summary = (value || "").trim();
+          }
+        }
+      }
+      return events;
+    }
+
+    // atbalsta formas YYYYMMDD un YYYYMMDDTHHmmssZ
+    function parseICSDate(val) {
+      if (!val) return null;
+      if (/^\d{8}$/.test(val)) {
+        const y = parseInt(val.slice(0, 4), 10);
+        const m = parseInt(val.slice(4, 6), 10) - 1;
+        const d = parseInt(val.slice(6, 8), 10);
+        return new Date(y, m, d);
+      }
+      const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/.exec(val);
+      if (match) {
+        const [_, y, m, d, hh, mm, ss] = match;
+        return new Date(
+          Date.UTC(
+            parseInt(y, 10),
+            parseInt(m, 10) - 1,
+            parseInt(d, 10),
+            parseInt(hh, 10),
+            parseInt(mm, 10),
+            parseInt(ss, 10)
+          )
+        );
+      }
+      return new Date(val);
+    }
+
+    function eventsByDay(events, year, month) {
+      const map = {};
+      for (const ev of events) {
+        if (!ev.start) continue;
+        const d = ev.start;
+        if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+        const key = d.toISOString().slice(0, 10);
+        if (!map[key]) map[key] = [];
+        map[key].push(ev);
+      }
+      return map;
+    }
+
+    function renderMonthCalendar(containerId, events, options = {}) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+
+      const first = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const firstJsDay = first.getDay(); // 0=Sv
+      const offset = (firstJsDay + 6) % 7; // Monday-first
+
+      const eventsMap = eventsByDay(events, year, month);
+
+      container.innerHTML = "";
+
+      const header = document.createElement("div");
+      header.className = "month-calendar-header";
+      const weekdays = ["P", "O", "T", "C", "Pk", "S", "Sv"];
+      weekdays.forEach(d => {
+        const div = document.createElement("div");
+        div.textContent = d;
+        header.appendChild(div);
+      });
+
+      const grid = document.createElement("div");
+      grid.className = "month-calendar-grid";
+
+      const totalCells = 42; // 7x6
+      let dayNum = 1;
+
+      for (let i = 0; i < totalCells; i++) {
+        const cell = document.createElement("div");
+        cell.className = "day-cell";
+
+        if (i >= offset && dayNum <= daysInMonth) {
+          const cellDate = new Date(year, month, dayNum);
+          const key = cellDate.toISOString().slice(0, 10);
+          const today = new Date();
+
+          const num = document.createElement("div");
+          num.className = "day-number";
+          if (
+            cellDate.getFullYear() === today.getFullYear() &&
+            cellDate.getMonth() === today.getMonth() &&
+            cellDate.getDate() === today.getDate()
+          ) {
+            num.classList.add("today");
+          }
+          num.textContent = dayNum;
+
+          const evWrap = document.createElement("div");
+          evWrap.className = "day-events";
+
+          const dayEvents = eventsMap[key] || [];
+          dayEvents.forEach(ev => {
+            const p = document.createElement("div");
+            const dot = document.createElement("span");
+            dot.className = "day-event-dot " + (options.colorClass || "");
+            p.appendChild(dot);
+            p.appendChild(document.createTextNode(ev.summary));
+            evWrap.appendChild(p);
+          });
+
+          cell.appendChild(num);
+          cell.appendChild(evWrap);
+
+          dayNum++;
+        } else {
+          cell.classList.add("outside");
+        }
+
+        grid.appendChild(cell);
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "month-calendar";
+      wrapper.appendChild(header);
+      wrapper.appendChild(grid);
+
+      container.appendChild(wrapper);
+    }
+
+    async function loadCalendars() {
+      try {
+        if (!ICS_URL_JANIS || !ICS_URL_DRAUDZENE) {
+          document.getElementById("calendar-janis").textContent = "Norādi ICS URL Jānim.";
+          document.getElementById("calendar-draudzene").textContent = "Norādi ICS URL draudzenei.";
+          return;
+        }
+
+        const [icsJanis, icsDraudzene] = await Promise.all([
+          fetchICS(ICS_URL_JANIS),
+          fetchICS(ICS_URL_DRAUDZENE)
+        ]);
+
+        const eventsJanis = parseICS(icsJanis);
+        const eventsDraudzene = parseICS(icsDraudzene);
+
+        renderMonthCalendar("calendar-janis", eventsJanis, { colorClass: "me" });
+        renderMonthCalendar("calendar-draudzene", eventsDraudzene, { colorClass: "partner" });
+      } catch (e) {
+        console.error(e);
+        document.getElementById("calendar-janis").textContent =
+          "Neizdevās ielādēt kalendāru (ICS).";
+        document.getElementById("calendar-draudzene").textContent =
+          "Neizdevās ielādēt kalendāru (ICS).";
+      }
+    }
+
+    loadCalendars();
+    setInterval(loadCalendars, 15 * 60 * 1000);
+
+    // ========================
+    // FONA ATTĒLU BIBLIOTĒKA — ik pēc 6 sekundēm
+    // ========================
+    (function setupBackground() {
+      const imgEl = document.getElementById("bg-photo");
+      if (!imgEl) return;
+
+      const urls = [
+        "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1500534314211-0a24cd03f2c0?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1508921912186-1d1a45ebb3c1?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1920&q=80",
+        "https://images.unsplash.com/photo-1500534314211-0a24cd03f2c0?auto=format&fit=crop&w=1920&q=80"
+      ];
+
+      let index = 0;
+
+      function showBackground(i) {
+        const src = urls[i % urls.length];
+        imgEl.classList.remove("visible");
+        setTimeout(() => {
+          imgEl.src = src;
+          imgEl.onload = () => imgEl.classList.add("visible");
+        }, 80);
+      }
+
+      showBackground(index);
+      setInterval(() => {
+        index = (index + 1) % urls.length;
+        showBackground(index);
+      }, 6000); // 6 sekundes
+    })();
+  </script>
+</body>
+</html>
